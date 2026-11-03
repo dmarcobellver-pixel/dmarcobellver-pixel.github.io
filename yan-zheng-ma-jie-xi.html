@@ -1,0 +1,716 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>验证码解析</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f4f6f7;
+        --surface: #ffffff;
+        --surface-2: #eef1f2;
+        --ink: #16211f;
+        --ink-2: #4c5a57;
+        --ink-3: #84918d;
+        --line: #dde3e1;
+        --accent: #0b7a68;
+        --accent-ink: #ffffff;
+        --accent-soft: #e2f2ee;
+        --danger: #b3372e;
+        --danger-soft: #fbeae8;
+        --ring-track: #dde3e1;
+        --shadow: 0 18px 44px rgba(18, 38, 34, 0.10), 0 3px 10px rgba(18, 38, 34, 0.06);
+        --radius: 14px;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0d1214;
+          --surface: #151d1f;
+          --surface-2: #1b2426;
+          --ink: #e8efed;
+          --ink-2: #a7b5b1;
+          --ink-3: #6f7f7b;
+          --line: #26312f;
+          --accent: #2fc4a7;
+          --accent-ink: #06231c;
+          --accent-soft: #12322c;
+          --danger: #f08a80;
+          --danger-soft: #3a1d1a;
+          --ring-track: #26312f;
+          --shadow: 0 18px 44px rgba(0, 0, 0, 0.45), 0 3px 10px rgba(0, 0, 0, 0.3);
+        }
+      }
+
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+          "Microsoft YaHei", "Noto Sans SC", "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+        line-height: 1.5;
+      }
+      .mono {
+        font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .wrap {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: clamp(20px, 5vw, 44px) clamp(16px, 4vw, 28px) 56px;
+      }
+
+      h1 {
+        font-size: clamp(26px, 6vw, 34px);
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        margin: 0 0 6px;
+      }
+      .sub {
+        margin: 0 0 26px;
+        color: var(--ink-2);
+        font-size: 15px;
+      }
+
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: clamp(18px, 4.5vw, 26px);
+      }
+      .panel + .panel { margin-top: 18px; }
+
+      label.field-label {
+        display: block;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--ink-2);
+        letter-spacing: 0.04em;
+        margin-bottom: 10px;
+      }
+      textarea {
+        width: 100%;
+        min-height: 84px;
+        resize: vertical;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--surface-2);
+        color: var(--ink);
+        padding: 12px 14px;
+        font-size: 14px;
+        line-height: 1.55;
+        word-break: break-all;
+        outline: none;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      }
+      textarea:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+      }
+      textarea::placeholder { color: var(--ink-3); }
+
+      .btn-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 14px;
+      }
+      button {
+        font: inherit;
+        cursor: pointer;
+        border-radius: 10px;
+        border: 1px solid transparent;
+        padding: 10px 18px;
+        font-size: 15px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+      }
+      button:active { transform: scale(0.98); }
+      .btn-primary {
+        background: var(--accent);
+        color: var(--accent-ink);
+      }
+      .btn-ghost {
+        background: transparent;
+        color: var(--ink-2);
+        border-color: var(--line);
+      }
+      .btn-ghost:hover { border-color: var(--ink-3); color: var(--ink); }
+      button svg { width: 16px; height: 16px; flex: none; }
+
+      .hint {
+        margin: 12px 0 0;
+        font-size: 13px;
+        color: var(--ink-3);
+      }
+      .formats {
+        margin: 8px 0 0;
+        font-size: 13px;
+        color: var(--ink-3);
+      }
+      .formats code {
+        background: var(--surface-2);
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        padding: 1px 6px;
+        font-size: 12px;
+        word-break: break-all;
+      }
+
+      .error {
+        display: none;
+        margin-top: 14px;
+        background: var(--danger-soft);
+        color: var(--danger);
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 14px;
+      }
+      .error.show { display: block; }
+
+      /* ---- result ---- */
+      #resultPanel { display: none; }
+      #resultPanel.show { display: block; }
+
+      .code-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .code-label {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        color: var(--ink-2);
+      }
+      .secret-mask {
+        font-size: 12.5px;
+        color: var(--ink-3);
+        letter-spacing: 0.06em;
+      }
+
+      .code-main {
+        display: flex;
+        align-items: center;
+        gap: clamp(16px, 5vw, 30px);
+        margin-top: 14px;
+        flex-wrap: wrap;
+      }
+      .code-digits {
+        font-size: clamp(52px, 14.5vw, 84px);
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        line-height: 1.05;
+        color: var(--ink);
+        user-select: all;
+        white-space: nowrap;
+      }
+      .code-digits .gap { color: var(--ink-3); font-weight: 400; margin: 0 0.06em; }
+      .code-digits.tick { animation: codeIn 0.35s ease; }
+      @keyframes codeIn {
+        from { opacity: 0.25; transform: translateY(5px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .ring-box {
+        position: relative;
+        width: 84px;
+        height: 84px;
+        flex: none;
+        margin-left: auto;
+      }
+      .ring-box svg { width: 84px; height: 84px; transform: rotate(-90deg); display: block; }
+      .ring-track { stroke: var(--ring-track); }
+      .ring-arc {
+        stroke: var(--accent);
+        stroke-linecap: round;
+        transition: stroke 0.3s ease;
+      }
+      .ring-box.urgent .ring-arc { stroke: var(--danger); }
+      .ring-num {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        line-height: 1.1;
+      }
+      .ring-num .n { font-size: 24px; font-weight: 700; }
+      .ring-num .u { font-size: 11px; color: var(--ink-3); }
+
+      .bar {
+        height: 5px;
+        border-radius: 99px;
+        background: var(--ring-track);
+        overflow: hidden;
+        margin-top: 18px;
+      }
+      .bar > i {
+        display: block;
+        height: 100%;
+        background: var(--accent);
+        border-radius: 99px;
+        transition: background 0.3s ease;
+      }
+      .bar.urgent > i { background: var(--danger); }
+
+      .code-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        margin-top: 20px;
+      }
+      .btn-copy {
+        background: var(--accent);
+        color: var(--accent-ink);
+        padding: 12px 22px;
+        font-size: 16px;
+      }
+      .btn-copy.copied { background: var(--ink); color: var(--bg); }
+      .next-code {
+        margin-left: auto;
+        font-size: 13.5px;
+        color: var(--ink-3);
+        text-align: right;
+      }
+      .next-code .mono { color: var(--ink-2); font-size: 15px; letter-spacing: 0.08em; }
+
+      .empty-note {
+        color: var(--ink-3);
+        font-size: 14.5px;
+        text-align: center;
+        padding: 10px 0 4px;
+        margin: 0;
+      }
+
+      @media (max-width: 420px) {
+        .ring-box { margin-left: 0; }
+        .next-code { margin-left: 0; text-align: left; width: 100%; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .code-digits.tick { animation: none; }
+        button { transition: none; }
+        button:active { transform: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <h1>验证码解析</h1>
+      <p class="sub">粘贴 2fa.live 链接或密钥本身，即时生成当前的一次性验证码（TOTP）。</p>
+
+      <section class="panel" aria-label="输入密钥">
+        <label class="field-label" for="input">链接或密钥</label>
+        <textarea id="input" class="mono" rows="3" spellcheck="false" autocomplete="off"
+          autocapitalize="characters"
+          placeholder="粘贴整条链接，例如 https://2fa.live/tok/XXXX…，或直接粘贴密钥"></textarea>
+        <div class="btn-row">
+          <button type="button" class="btn-primary" id="parseBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7"></circle>
+              <path d="m21 21-4.3-4.3"></path>
+            </svg>
+            解析生成
+          </button>
+          <button type="button" class="btn-ghost" id="pasteBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="8" y="2" width="8" height="4" rx="1"></rect>
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+            </svg>
+            从剪贴板粘贴
+          </button>
+          <button type="button" class="btn-ghost" id="clearBtn">清空</button>
+        </div>
+        <p class="formats">支持三种粘法：<code>2fa.live/tok/…</code> 链接、<code>otpauth://…</code> 链接、纯 Base32 密钥（带空格或横线都可以）。</p>
+        <p class="formats">发给买家时，也可以把密钥拼在本页地址后面：<code>本页地址?tok=密钥</code>，买家点开即看，不用粘贴。</p>
+        <p class="hint">密钥只在本页内存里参与计算，不保存、不上传；点「清空」或关掉页面即消失。</p>
+        <div class="error" id="errorBox" role="alert"></div>
+      </section>
+
+      <section class="panel" id="resultPanel" aria-label="当前验证码">
+        <div class="code-head">
+          <span class="code-label">当前验证码</span>
+          <span class="secret-mask mono" id="secretMask"></span>
+        </div>
+        <div class="code-main">
+          <div class="code-digits mono" id="codeDigits" aria-live="off">––– –––</div>
+          <div class="ring-box" id="ringBox" aria-hidden="true">
+            <svg viewBox="0 0 84 84">
+              <circle class="ring-track" cx="42" cy="42" r="36" fill="none" stroke-width="6"></circle>
+              <circle class="ring-arc" id="ringArc" cx="42" cy="42" r="36" fill="none" stroke-width="6"
+                stroke-dasharray="226.2" stroke-dashoffset="0"></circle>
+            </svg>
+            <div class="ring-num">
+              <span class="n mono" id="ringNum">30</span>
+              <span class="u">秒后刷新</span>
+            </div>
+          </div>
+        </div>
+        <div class="bar" id="barBox"><i id="barFill" style="width:100%"></i></div>
+        <div class="code-actions">
+          <button type="button" class="btn-copy" id="copyBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <span id="copyLabel">复制验证码</span>
+          </button>
+          <div class="next-code">下一组&nbsp;<span class="mono" id="nextCode">––––––</span></div>
+        </div>
+      </section>
+
+      <p class="empty-note" id="emptyNote">粘贴链接或密钥后，验证码会显示在这里。</p>
+    </main>
+
+    <script>
+      (function () {
+        "use strict";
+
+        var B32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+        var CIRC = 226.2; // 2 * PI * 36
+
+        var inputEl = document.getElementById("input");
+        var errorBox = document.getElementById("errorBox");
+        var resultPanel = document.getElementById("resultPanel");
+        var emptyNote = document.getElementById("emptyNote");
+        var codeDigits = document.getElementById("codeDigits");
+        var ringBox = document.getElementById("ringBox");
+        var ringArc = document.getElementById("ringArc");
+        var ringNum = document.getElementById("ringNum");
+        var barBox = document.getElementById("barBox");
+        var barFill = document.getElementById("barFill");
+        var copyBtn = document.getElementById("copyBtn");
+        var copyLabel = document.getElementById("copyLabel");
+        var nextCodeEl = document.getElementById("nextCode");
+        var secretMask = document.getElementById("secretMask");
+
+        // Runtime state — memory only, never persisted.
+        var state = {
+          keyBytes: null,
+          secretText: "",
+          digits: 6,
+          period: 30,
+          counter: -1,
+          code: "",
+          nextCode: "",
+          timer: null,
+          copyResetTimer: null
+        };
+
+        /* ---------- secret extraction ---------- */
+
+        function cleanBase32(s) {
+          return s.toUpperCase().replace(/[\s\-]/g, "").replace(/=+$/, "");
+        }
+
+        function isBase32(s) {
+          return s.length >= 8 && /^[A-Z2-7]+$/.test(s);
+        }
+
+        // Pull the secret (and optional digits/period) out of whatever was pasted.
+        function extract(raw) {
+          var s = (raw || "").trim();
+          if (!s) return null;
+
+          var digits = 6, period = 30;
+
+          // otpauth://totp/...?secret=XXXX&digits=6&period=30
+          var m = s.match(/[?&]secret=([A-Za-z2-7=\s\-]+)/i);
+          if (m) {
+            var d = s.match(/[?&]digits=(\d+)/i);
+            var p = s.match(/[?&]period=(\d+)/i);
+            if (d) digits = Math.min(8, Math.max(6, parseInt(d[1], 10) || 6));
+            if (p) period = Math.min(120, Math.max(10, parseInt(p[1], 10) || 30));
+            var c1 = cleanBase32(m[1]);
+            if (isBase32(c1)) return { secret: c1, digits: digits, period: period };
+            return null;
+          }
+
+          // 2fa.live style: .../tok/SECRET
+          m = s.match(/\/tok\/([A-Za-z2-7=]+)/i);
+          if (m) {
+            var c2 = cleanBase32(m[1]);
+            if (isBase32(c2)) return { secret: c2, digits: digits, period: period };
+          }
+
+          // Any other URL: try the last path segment.
+          if (/^https?:\/\//i.test(s)) {
+            var seg = s.split(/[?#]/)[0].split("/").filter(Boolean).pop() || "";
+            var c3 = cleanBase32(seg);
+            if (isBase32(c3)) return { secret: c3, digits: digits, period: period };
+            return null;
+          }
+
+          // Raw Base32 secret (spaces / dashes allowed).
+          var c4 = cleanBase32(s);
+          if (isBase32(c4)) return { secret: c4, digits: digits, period: period };
+
+          return null;
+        }
+
+        /* ---------- Base32 decode ---------- */
+
+        function base32Decode(str) {
+          var bits = 0, value = 0, out = [];
+          for (var i = 0; i < str.length; i++) {
+            var idx = B32_ALPHABET.indexOf(str[i]);
+            if (idx === -1) throw new Error("invalid base32 char");
+            value = (value << 5) | idx;
+            bits += 5;
+            if (bits >= 8) {
+              out.push((value >>> (bits - 8)) & 0xff);
+              bits -= 8;
+            }
+          }
+          if (out.length === 0) throw new Error("empty key");
+          return new Uint8Array(out);
+        }
+
+        /* ---------- TOTP (RFC 6238, HMAC-SHA1 via Web Crypto) ---------- */
+
+        function totp(keyBytes, counter, digits) {
+          var buf = new ArrayBuffer(8);
+          var dv = new DataView(buf);
+          dv.setUint32(0, Math.floor(counter / 4294967296));
+          dv.setUint32(4, counter >>> 0);
+          return crypto.subtle
+            .importKey("raw", keyBytes, { name: "HMAC", hash: "SHA-1" }, false, ["sign"])
+            .then(function (key) { return crypto.subtle.sign("HMAC", key, buf); })
+            .then(function (sig) {
+              var h = new Uint8Array(sig);
+              var off = h[h.length - 1] & 0x0f;
+              var bin =
+                ((h[off] & 0x7f) << 24) |
+                ((h[off + 1] & 0xff) << 16) |
+                ((h[off + 2] & 0xff) << 8) |
+                (h[off + 3] & 0xff);
+              var mod = Math.pow(10, digits);
+              return String(bin % mod).padStart(digits, "0");
+            });
+        }
+
+        /* ---------- display ---------- */
+
+        function groupCode(code) {
+          if (code.length === 6) return code.slice(0, 3) + '<span class="gap"> </span>' + code.slice(3);
+          if (code.length === 8) return code.slice(0, 4) + '<span class="gap"> </span>' + code.slice(4);
+          return code;
+        }
+
+        function maskSecret(secret) {
+          if (secret.length <= 8) return "密钥 " + secret.slice(0, 2) + "••••";
+          return "密钥 " + secret.slice(0, 4) + " •••• " + secret.slice(-4);
+        }
+
+        function showError(msg) {
+          errorBox.textContent = msg;
+          errorBox.classList.add("show");
+        }
+        function hideError() {
+          errorBox.textContent = "";
+          errorBox.classList.remove("show");
+        }
+
+        function stopTimer() {
+          if (state.timer !== null) {
+            clearInterval(state.timer);
+            state.timer = null;
+          }
+        }
+
+        function tick() {
+          if (!state.keyBytes) return;
+          var nowSec = Date.now() / 1000;
+          var counter = Math.floor(nowSec / state.period);
+          var remain = state.period - (nowSec % state.period);
+          var frac = remain / state.period;
+
+          ringNum.textContent = String(Math.ceil(remain));
+          ringArc.style.strokeDashoffset = String(CIRC * (1 - frac));
+          barFill.style.width = (frac * 100).toFixed(2) + "%";
+          var urgent = remain <= 5;
+          ringBox.classList.toggle("urgent", urgent);
+          barBox.classList.toggle("urgent", urgent);
+
+          if (counter !== state.counter) {
+            state.counter = counter;
+            totp(state.keyBytes, counter, state.digits).then(function (code) {
+              if (state.counter !== counter) return; // stale
+              state.code = code;
+              codeDigits.innerHTML = groupCode(code);
+              codeDigits.classList.remove("tick");
+              void codeDigits.offsetWidth;
+              codeDigits.classList.add("tick");
+            });
+            totp(state.keyBytes, counter + 1, state.digits).then(function (code) {
+              if (state.counter !== counter) return;
+              state.nextCode = code;
+              nextCodeEl.textContent = code;
+            });
+          }
+        }
+
+        function startTimer() {
+          stopTimer();
+          tick();
+          state.timer = setInterval(tick, 200);
+        }
+
+        /* ---------- parse / clear ---------- */
+
+        function parse() {
+          var found = extract(inputEl.value);
+          if (!found) {
+            if (inputEl.value.trim() === "") {
+              hideError();
+              return;
+            }
+            showError("没能从输入里找到有效的 Base32 密钥。请粘贴完整的 2fa.live 链接，或直接粘贴密钥本身。");
+            return;
+          }
+          var keyBytes;
+          try {
+            keyBytes = base32Decode(found.secret);
+          } catch (e) {
+            showError("密钥解码失败，请检查粘贴的内容是否完整。");
+            return;
+          }
+          hideError();
+          state.keyBytes = keyBytes;
+          state.secretText = found.secret;
+          state.digits = found.digits;
+          state.period = found.period;
+          state.counter = -1;
+          secretMask.textContent = maskSecret(found.secret);
+          resultPanel.classList.add("show");
+          emptyNote.style.display = "none";
+          startTimer();
+        }
+
+        function clearAll() {
+          stopTimer();
+          state.keyBytes = null;
+          state.secretText = "";
+          state.counter = -1;
+          state.code = "";
+          state.nextCode = "";
+          inputEl.value = "";
+          hideError();
+          resultPanel.classList.remove("show");
+          emptyNote.style.display = "";
+          codeDigits.textContent = "––– –––";
+          nextCodeEl.textContent = "––––––";
+          secretMask.textContent = "";
+          resetCopyBtn();
+          inputEl.focus();
+        }
+
+        /* ---------- copy ---------- */
+
+        function resetCopyBtn() {
+          if (state.copyResetTimer !== null) {
+            clearTimeout(state.copyResetTimer);
+            state.copyResetTimer = null;
+          }
+          copyBtn.classList.remove("copied");
+          copyLabel.textContent = "复制验证码";
+        }
+
+        function copyCode() {
+          if (!state.code) return;
+          var text = state.code;
+          function done() {
+            copyBtn.classList.add("copied");
+            copyLabel.textContent = "已复制";
+            if (state.copyResetTimer !== null) clearTimeout(state.copyResetTimer);
+            state.copyResetTimer = setTimeout(resetCopyBtn, 2000);
+          }
+          function fallback() {
+            var ta = document.createElement("textarea");
+            ta.value = text;
+            ta.setAttribute("readonly", "");
+            ta.style.position = "fixed";
+            ta.style.opacity = "0";
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand("copy"); done(); } catch (e) { /* leave code selectable */ }
+            document.body.removeChild(ta);
+          }
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(done, fallback);
+          } else {
+            fallback();
+          }
+        }
+
+        /* ---------- events ---------- */
+
+        var debounce = null;
+        inputEl.addEventListener("input", function () {
+          if (debounce !== null) clearTimeout(debounce);
+          debounce = setTimeout(parse, 250);
+        });
+        inputEl.addEventListener("paste", function () {
+          if (debounce !== null) clearTimeout(debounce);
+          debounce = setTimeout(parse, 60);
+        });
+        document.getElementById("parseBtn").addEventListener("click", parse);
+        document.getElementById("clearBtn").addEventListener("click", clearAll);
+        copyBtn.addEventListener("click", copyCode);
+        document.getElementById("pasteBtn").addEventListener("click", function () {
+          if (navigator.clipboard && navigator.clipboard.readText) {
+            navigator.clipboard.readText().then(function (t) {
+              if (t) {
+                inputEl.value = t;
+                parse();
+              } else {
+                inputEl.focus();
+              }
+            }, function () { inputEl.focus(); });
+          } else {
+            inputEl.focus();
+          }
+        });
+
+        // Keep the countdown honest when returning to the tab.
+        document.addEventListener("visibilitychange", function () {
+          if (!document.hidden) tick();
+        });
+
+        // Open-with-key: ?tok=XXXX or ?key=XXXX in the page address
+        // (the value may be a bare secret or a full 2fa.live link).
+        (function loadFromUrl() {
+          var v = null;
+          try {
+            var params = new URLSearchParams(window.location.search);
+            v = params.get("tok") || params.get("key");
+            if (!v && window.location.hash) {
+              var hp = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+              v = hp.get("tok") || hp.get("key");
+            }
+          } catch (e) { /* no params — start empty */ }
+          if (v) {
+            inputEl.value = v;
+            parse();
+          }
+        })();
+      })();
+    </script>
+  </body>
+</html>
